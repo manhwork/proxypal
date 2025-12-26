@@ -111,34 +111,32 @@ jobs:
 
       - name: Download CLIProxyAPI binary
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -e
           mkdir -p src-tauri/binaries
 
-          # Get version with fallback
-          VERSION=$(curl -s https://api.github.com/repos/router-for-me/CLIProxyAPI/releases/latest | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/' || echo "")
-          if [ -z "$VERSION" ]; then
-            VERSION="6.6.56"
-            echo "Using fallback version: $VERSION"
-          fi
-          echo "CLIProxyAPI version: $VERSION"
-
           case "${{ matrix.target }}" in
             aarch64-apple-darwin)
-              ASSET="CLIProxyAPI_${VERSION}_darwin_arm64.tar.gz"
+              ASSET_PATTERN="*darwin_arm64.tar.gz"
               BINARY="cliproxyapi-aarch64-apple-darwin"
+              ARCHIVE_TYPE="tar"
               ;;
             x86_64-apple-darwin)
-              ASSET="CLIProxyAPI_${VERSION}_darwin_amd64.tar.gz"
+              ASSET_PATTERN="*darwin_amd64.tar.gz"
               BINARY="cliproxyapi-x86_64-apple-darwin"
+              ARCHIVE_TYPE="tar"
               ;;
             x86_64-unknown-linux-gnu)
-              ASSET="CLIProxyAPI_${VERSION}_linux_amd64.tar.gz"
+              ASSET_PATTERN="*linux_amd64.tar.gz"
               BINARY="cliproxyapi-x86_64-unknown-linux-gnu"
+              ARCHIVE_TYPE="tar"
               ;;
             x86_64-pc-windows-msvc)
-              ASSET="CLIProxyAPI_${VERSION}_windows_amd64.zip"
+              ASSET_PATTERN="*windows_amd64.zip"
               BINARY="cliproxyapi-x86_64-pc-windows-msvc.exe"
+              ARCHIVE_TYPE="zip"
               ;;
             *)
               echo "Unknown target: ${{ matrix.target }}"
@@ -146,15 +144,17 @@ jobs:
               ;;
           esac
 
-          URL="https://github.com/router-for-me/CLIProxyAPI/releases/download/v${VERSION}/${ASSET}"
-          echo "Downloading $ASSET from $URL..."
-          curl -L -f -o /tmp/cliproxyapi.archive "$URL"
-
+          echo "Downloading CLIProxyAPI for ${{ matrix.target }}..."
           cd /tmp
-          if [[ "$ASSET" == *.zip ]]; then
-            unzip -q cliproxyapi.archive
+          gh release download --repo router-for-me/CLIProxyAPI --pattern "$ASSET_PATTERN" --clobber
+
+          ARCHIVE=$(ls $ASSET_PATTERN 2>/dev/null | head -1)
+          echo "Extracting $ARCHIVE..."
+
+          if [ "$ARCHIVE_TYPE" = "zip" ]; then
+            unzip -q "$ARCHIVE"
           else
-            tar -xzf cliproxyapi.archive
+            tar -xzf "$ARCHIVE"
           fi
 
           if [ -f "CLIProxyAPI" ]; then
@@ -163,12 +163,12 @@ jobs:
           elif [ -f "CLIProxyAPI.exe" ]; then
             cp CLIProxyAPI.exe "$GITHUB_WORKSPACE/src-tauri/binaries/$BINARY"
           else
-            echo "Binary not found in archive!"
+            echo "Binary not found!"
             ls -la
             exit 1
           fi
 
-          echo "Downloaded binary:"
+          echo "Downloaded:"
           ls -la "$GITHUB_WORKSPACE/src-tauri/binaries/"
 
       - name: Build Tauri app
