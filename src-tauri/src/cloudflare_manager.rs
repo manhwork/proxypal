@@ -8,6 +8,72 @@ use tokio::sync::Notify;
 
 use crate::types::cloudflare::CloudflareConfig;
 
+/// Find cloudflared binary path - checks common installation locations
+/// GUI apps on macOS don't inherit terminal PATH, so we check manually
+fn find_cloudflared_path() -> Option<String> {
+    let possible_paths = [
+        // Direct command (if in PATH)
+        "cloudflared",
+        // macOS Homebrew (Apple Silicon)
+        "/opt/homebrew/bin/cloudflared",
+        // macOS Homebrew (Intel)
+        "/usr/local/bin/cloudflared",
+        // Linux common paths
+        "/usr/bin/cloudflared",
+        "/usr/local/bin/cloudflared",
+        // Snap on Linux
+        "/snap/bin/cloudflared",
+        // Windows common paths
+        "C:\\Program Files\\cloudflared\\cloudflared.exe",
+        "C:\\Program Files (x86)\\cloudflared\\cloudflared.exe",
+        // User local bin
+        &format!("{}/.local/bin/cloudflared", std::env::var("HOME").unwrap_or_default()),
+    ];
+    
+    for path in possible_paths {
+        if path == "cloudflared" {
+            // Check if it's in PATH using `which` or `where`
+            #[cfg(unix)]
+            {
+                if let Ok(output) = std::process::Command::new("which")
+                    .arg("cloudflared")
+                    .output()
+                {
+                    if output.status.success() {
+                        let path_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                        if !path_str.is_empty() {
+                            return Some(path_str);
+                        }
+                    }
+                }
+            }
+            #[cfg(windows)]
+            {
+                if let Ok(output) = std::process::Command::new("where")
+                    .arg("cloudflared")
+                    .output()
+                {
+                    if output.status.success() {
+                        let path_str = String::from_utf8_lossy(&output.stdout)
+                            .lines()
+                            .next()
+                            .unwrap_or("")
+                            .trim()
+                            .to_string();
+                        if !path_str.is_empty() {
+                            return Some(path_str);
+                        }
+                    }
+                }
+            }
+        } else if std::path::Path::new(path).exists() {
+            return Some(path.to_string());
+        }
+    }
+    
+    None
+}
+
 #[derive(Clone, serde::Serialize)]
 struct CloudflareStatusUpdate {
     id: String,
@@ -58,6 +124,16 @@ impl CloudflareManager {
         let handle = tauri::async_runtime::spawn(async move {
             emit_status_clone("connecting", Some("Starting tunnel...".into()), None);
             
+            // Find cloudflared binary - check common installation paths
+            // GUI apps on macOS don't inherit terminal PATH, so we need to check manually
+            let cloudflared_path = find_cloudflared_path();
+            
+            if cloudflared_path.is_none() {
+                emit_status_clone("error", Some("cloudflared not found. Please install it first.".into()), None);
+                return;
+            }
+            let cloudflared_bin = cloudflared_path.unwrap();
+            
             let mut retry_count = 0;
             const MAX_RETRIES: u32 = 3;
             
@@ -68,7 +144,7 @@ impl CloudflareManager {
                 // 
                 // For quick tunnels (no token, just expose a port):
                 // cloudflared tunnel --url http://localhost:<port>
-                let mut cmd = Command::new("cloudflared");
+                let mut cmd = Command::new(&cloudflared_bin);
                 
                 if config.tunnel_token.is_empty() {
                     // Quick tunnel mode - expose local port directly
