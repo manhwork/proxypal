@@ -616,11 +616,10 @@ export function Analytics() {
 								{(preset) => (
 									<button
 										onClick={() => handlePresetChange(preset.value)}
-										class={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
-											datePreset() === preset.value
+										class={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${datePreset() === preset.value
 												? "bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm"
 												: "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
-										}`}
+											}`}
 									>
 										{preset.label}
 									</button>
@@ -636,11 +635,10 @@ export function Analytics() {
 						{/* Privacy Toggle */}
 						<button
 							onClick={() => setPrivacyMode(!privacyMode())}
-							class={`p-1.5 rounded-lg border transition-colors ${
-								privacyMode()
+							class={`p-1.5 rounded-lg border transition-colors ${privacyMode()
 									? "bg-purple-100 dark:bg-purple-900/30 border-purple-300 dark:border-purple-700 text-purple-600 dark:text-purple-400"
 									: "bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
-							}`}
+								}`}
 							title={
 								privacyMode() ? "Show sensitive data" : "Hide sensitive data"
 							}
@@ -761,11 +759,37 @@ export function Analytics() {
 						<h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
 							No Usage Data Yet
 						</h3>
-						<p class="text-gray-500 dark:text-gray-400">
+						<p class="text-gray-500 dark:text-gray-400 mb-6">
 							Analytics will appear after you make requests through the proxy
 						</p>
+
+						{/* Troubleshooting tips */}
+						<div class="max-w-md mx-auto text-left bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+							<p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+								Not seeing data? Check that:
+							</p>
+							<ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2">
+								<li class="flex items-start gap-2">
+									<span class="text-green-500 mt-0.5">✓</span>
+									<span>Proxy is running (check Dashboard status)</span>
+								</li>
+								<li class="flex items-start gap-2">
+									<span class="text-green-500 mt-0.5">✓</span>
+									<span>At least one provider is connected</span>
+								</li>
+								<li class="flex items-start gap-2">
+									<span class="text-green-500 mt-0.5">✓</span>
+									<span>Your AI tool is configured to use <code class="px-1 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs">http://localhost:8317/v1</code></span>
+								</li>
+								<li class="flex items-start gap-2">
+									<span class="text-green-500 mt-0.5">✓</span>
+									<span>You've made at least one request from your AI tool</span>
+								</li>
+							</ul>
+						</div>
 					</div>
 				</Show>
+
 
 				{/* Loading state */}
 				<Show when={loading()}>
