@@ -50,6 +50,7 @@ import {
 	getConfig,
 	getConfigYaml,
 	getForceModelMappings,
+	getGptReasoningModels,
 	getLogSize,
 	getMaxRetryInterval,
 	getOAuthExcludedModels,
@@ -82,7 +83,6 @@ import {
 	type UpdateInfo,
 	type UpdateProgress,
 	type UpdaterSupport,
-	getGptReasoningModels,
 } from "../lib/tauri";
 
 import { appStore } from "../stores/app";
@@ -124,17 +124,9 @@ const splitModelPrefix = (
 };
 
 // Helper functions that accept model set dynamically
-const splitAmpGptReasoningAlias = (
-	alias: string,
-	gptModelSet: Set<string>,
-) => {
+const splitAmpGptReasoningAlias = (alias: string, gptModelSet: Set<string>) => {
 	const match = alias.match(/^(.*)\(([^)]+)\)$/);
 	if (!match) {
-		// No suffix - check if base (with prefix stripped) is a GPT model
-		const { unprefixed } = splitModelPrefix(alias);
-		if (gptModelSet.has(unprefixed)) {
-			return { base: alias, level: "none" as AmpGptReasoningLevel };
-		}
 		return { base: alias, level: "none" as AmpGptReasoningLevel };
 	}
 	const base = match[1];
@@ -364,8 +356,7 @@ export function SettingsPage() {
 	// Amp GPT reasoning level (model suffix)
 	const [ampGptReasoningLevel, setAmpGptReasoningLevel] =
 		createSignal<AmpGptReasoningDisplayLevel>("none");
-	const [savingAmpGptReasoning, setSavingAmpGptReasoning] =
-		createSignal(false);
+	const [savingAmpGptReasoning, setSavingAmpGptReasoning] = createSignal(false);
 
 	// Management API runtime settings
 	const [maxRetryInterval, setMaxRetryIntervalState] = createSignal<number>(0);
@@ -803,7 +794,10 @@ export function SettingsPage() {
 		const mappingLevels = (config().ampModelMappings || [])
 			.filter((mapping) => mapping.enabled !== false)
 			.map((mapping) => {
-				const { base, level } = splitAmpGptReasoningAlias(mapping.alias, modelSet);
+				const { base, level } = splitAmpGptReasoningAlias(
+					mapping.alias,
+					modelSet,
+				);
 				const { unprefixed } = splitModelPrefix(base);
 				return modelSet.has(unprefixed) ? level : null;
 			})
@@ -1254,7 +1248,11 @@ export function SettingsPage() {
 				if (!modelSet.has(unprefixed)) {
 					return mapping;
 				}
-				const nextAlias = applyAmpGptReasoningLevel(mapping.alias, level, modelSet);
+				const nextAlias = applyAmpGptReasoningLevel(
+					mapping.alias,
+					level,
+					modelSet,
+				);
 				return nextAlias === mapping.alias
 					? mapping
 					: { ...mapping, alias: nextAlias };
@@ -2457,7 +2455,8 @@ export function SettingsPage() {
 													Amp GPT Reasoning Level
 												</span>
 												<p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-													Applies model suffix like gpt-5(high) to Amp mappings that target GPT-5.
+													Applies model suffix like gpt-5(high) to Amp mappings
+													that target GPT-5.
 												</p>
 											</div>
 										</div>
@@ -2471,7 +2470,8 @@ export function SettingsPage() {
 													value={ampGptReasoningLevel()}
 													onChange={(e) =>
 														setAmpGptReasoningLevel(
-															e.currentTarget.value as AmpGptReasoningDisplayLevel,
+															e.currentTarget
+																.value as AmpGptReasoningDisplayLevel,
 														)
 													}
 													class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-smooth [&>option]:bg-white [&>option]:dark:bg-gray-900 [&>option]:text-gray-900 [&>option]:dark:text-gray-100"
@@ -2586,7 +2586,10 @@ export function SettingsPage() {
 											const currentTargetAlias = () => mapping()?.alias || "";
 											// Strip reasoning suffix for dropdown matching (base model only)
 											const currentTargetBase = () =>
-												splitAmpGptReasoningAlias(currentTargetAlias(), gptBaseModelSet()).base || "";
+												splitAmpGptReasoningAlias(
+													currentTargetAlias(),
+													gptBaseModelSet(),
+												).base || "";
 
 											return (
 												<div class="p-3 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
@@ -2614,7 +2617,11 @@ export function SettingsPage() {
 																				: (uiLevel as AmpGptReasoningLevel);
 																		updateSlotMapping(
 																			slot.id,
-																			applyAmpGptReasoningLevel(defaultTarget, levelToApply, gptBaseModelSet()),
+																			applyAmpGptReasoningLevel(
+																				defaultTarget,
+																				levelToApply,
+																				gptBaseModelSet(),
+																			),
 																			true,
 																		);
 																	} else {
@@ -2651,19 +2658,28 @@ export function SettingsPage() {
 																	<select
 																		value={currentTargetBase()}
 																		onChange={(e) => {
-																			const newTargetBase = e.currentTarget.value;
+																			const newTargetBase =
+																				e.currentTarget.value;
 																			// Apply current reasoning level suffix to GPT base models
 																			const uiLevel = ampGptReasoningLevel();
 																			const levelToApply =
 																				uiLevel === "mixed"
-																					? splitAmpGptReasoningAlias(currentTargetAlias(), gptBaseModelSet()).level
+																					? splitAmpGptReasoningAlias(
+																							currentTargetAlias(),
+																							gptBaseModelSet(),
+																						).level
 																					: (uiLevel as AmpGptReasoningLevel);
-																			const nextAlias = applyAmpGptReasoningLevel(
-																				newTargetBase,
-																				levelToApply,
-																				gptBaseModelSet(),
+																			const nextAlias =
+																				applyAmpGptReasoningLevel(
+																					newTargetBase,
+																					levelToApply,
+																					gptBaseModelSet(),
+																				);
+																			updateSlotMapping(
+																				slot.id,
+																				nextAlias,
+																				true,
 																			);
-																			updateSlotMapping(slot.id, nextAlias, true);
 																		}}
 																		disabled={!isEnabled()}
 																		class={`flex-1 min-w-0 px-2 py-1.5 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg text-xs focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-smooth [&>option]:bg-white [&>option]:dark:bg-gray-900 [&>option]:text-gray-900 [&>option]:dark:text-gray-100 [&>optgroup]:bg-white [&>optgroup]:dark:bg-gray-900 [&>optgroup]:text-gray-900 [&>optgroup]:dark:text-gray-100 ${
@@ -2830,14 +2846,22 @@ export function SettingsPage() {
 
 															{/* To model (dropdown) */}
 															<select
-																value={splitAmpGptReasoningAlias(mapping.alias, gptBaseModelSet()).base}
+																value={
+																	splitAmpGptReasoningAlias(
+																		mapping.alias,
+																		gptBaseModelSet(),
+																	).base
+																}
 																onChange={(e) => {
 																	const newTargetBase = e.currentTarget.value;
 																	// Apply current reasoning level suffix to GPT base models
 																	const uiLevel = ampGptReasoningLevel();
 																	const levelToApply =
 																		uiLevel === "mixed"
-																			? splitAmpGptReasoningAlias(mapping.alias, gptBaseModelSet()).level
+																			? splitAmpGptReasoningAlias(
+																					mapping.alias,
+																					gptBaseModelSet(),
+																				).level
 																			: (uiLevel as AmpGptReasoningLevel);
 																	const nextAlias = applyAmpGptReasoningLevel(
 																		newTargetBase,
